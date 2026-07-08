@@ -1,7 +1,8 @@
 # PoolexDreamlineController
 
 Credit goes to [Njanik](https://github.com/njanik/hayward-pool-heater-mqtt)
-Credit goes to [CDX-24]((https://github.com/CDX-24/PoolexDreamlineController))
+
+Credit goes to [CDX-24](https://github.com/CDX-24/PoolexDreamlineController)
 
 Version non finalisée, mais fonctionnelle sur une Dreamline 95
 
