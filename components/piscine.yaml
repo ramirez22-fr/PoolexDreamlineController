@@ -1,0 +1,182 @@
+esphome:
+  name: esphome-piscine
+  friendly_name: Piscine
+
+
+  
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+  level: DEBUG
+    
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret encryption_key
+
+# Allow Over-The-Air updates
+ota:
+  - platform: esphome
+    password: !secret ota_pwd
+    
+wifi:
+  networks:
+  - ssid: !secret wifi_ssid
+    password: !secret wifi_password
+    priority: 5
+  - ssid: !secret wifi_ssid2
+    password: !secret wifi_password2
+    priority: 10
+    
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Piscine Fallback Hotspot"
+    password: !secret wifi_ap_password
+    
+captive_portal:
+
+external_components:
+  - source: 
+      type: local
+      path: my_components
+    components: [ hpci ]
+
+hpci:
+  id: hpci_dev
+
+sensor:
+  - platform: template
+    name: "Target Temperature"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 0
+    icon: "mdi:water-thermometer"
+    device_class: "temperature"
+    state_class: "measurement"
+    lambda: |-
+      return id(hpci_dev).getTargetTemp();
+    update_interval: 2s
+  - platform: template
+    name: "Water Inlet Temperature"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 0
+    icon: "mdi:water-thermometer"
+    device_class: "temperature"
+    state_class: "measurement"
+    lambda: |-
+      return id(hpci_dev).getWaterInTemp();
+    update_interval: 2s
+  - platform: template
+    name: "Water Outlet Temperature"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 0
+    icon: "mdi:water-thermometer"
+    device_class: "temperature"
+    state_class: "measurement"
+    lambda: |-
+      return id(hpci_dev).getWaterOutTemp();
+    update_interval: 2s
+  - platform: template
+    name: "Outdoor Temperature"
+    accuracy_decimals: 0
+    unit_of_measurement: "°C"
+    icon: "mdi:sun-thermometer"
+    device_class: "temperature"
+    state_class: "measurement"
+    lambda: |-
+      return id(hpci_dev).getOutdoorTemp();
+    update_interval: 2s
+  - platform: template
+    name: "Error Code"
+    icon: "mdi:hammer-wrench"
+    accuracy_decimals: 0
+    lambda: |-
+      return id(hpci_dev).getErrorCode();
+    update_interval: 2s
+  - platform: wifi_signal
+    name: "WiFi Signal"
+    update_interval: 60s
+    
+number:
+  - platform: template
+    id: target_temperature_number
+    name: "Consigne de température"
+    icon: "mdi:water-thermometer"
+    unit_of_measurement: "°C"
+    step: 1
+    min_value: 20
+    max_value: 35
+    set_action:
+      lambda: |-
+        id(hpci_dev).setTargetTemp((uint16_t)x);
+        id(target_temperature_number).publish_state(x);
+    lambda: |-
+      return id(hpci_dev).getTargetTemp();
+    update_interval: 2s
+
+switch:
+  - platform: template
+    id: power_switch
+    name: "Power"
+    icon: "mdi:power"
+    restore_mode: "ALWAYS_OFF"
+    turn_on_action:
+      lambda: |-
+        id(hpci_dev).setOn(true);
+        id(power_switch).publish_state(true);
+    turn_off_action:
+      lambda: |-
+        id(hpci_dev).setOn(false);
+        id(power_switch).publish_state(false);
+    lambda: |-
+        return id(hpci_dev).getOn();
+
+select:
+  - platform: template
+    id: mode_fonctionnement_select
+    name: "Mode de fonctionnement"
+    icon: "mdi:cog-outline"
+    optimistic: false
+    options:
+      - "Chauffage"
+      - "Refroidissement"
+      - "Automatique"
+    set_action:
+      lambda: |-
+        std::string new_state;
+        if (x == "Chauffage") {
+          id(hpci_dev).setOpMode(settings::HEAT_ONLY);
+          id(hpci_dev).setAction(settings::HEAT);
+          new_state = "Chauffage";
+        } else if (x == "Refroidissement") {
+          id(hpci_dev).setOpMode(settings::COLD_ONLY);
+          id(hpci_dev).setAction(settings::COOL);
+          new_state = "Refroidissement";
+        } else {
+          id(hpci_dev).setOpMode(settings::BOTH);
+          new_state = "Automatique";
+        }
+        id(mode_fonctionnement_select).publish_state(new_state);
+    lambda: |-
+      switch (id(hpci_dev).getOpMode()) {
+        case settings::HEAT_ONLY: return std::string("Chauffage");
+        case settings::COLD_ONLY: return std::string("Refroidissement");
+        default: return std::string("Automatique");
+      }
+    update_interval: 2s
+    
+text_sensor:
+  - platform: template
+    name: "Mode actuel"
+    icon: "mdi:thermometer-lines"
+    lambda: |-
+      return (id(hpci_dev).getAction() == settings::HEAT) ? std::string("Chauffage") : std::string("Refroidissement");
+    update_interval: 2s
+  - platform: wifi_info
+    scan_results:
+      name: "WiFi - Réseaux détectés au démarrage"
+    ssid: 
+      name: "SSID connecté"
